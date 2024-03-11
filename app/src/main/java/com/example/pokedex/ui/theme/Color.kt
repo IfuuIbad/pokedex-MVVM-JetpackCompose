@@ -31,3 +31,7 @@ val TypeDragon = Color(0xFF6F35FC)
 val TypeDark = Color(0xFF705746)
 val TypeSteel = Color(0xFFB7B7CE)
 val TypeFairy = Color(0xFFD685AD)
+
+val ButtonBlue = Color(0xff505cf3)
+val DarkerButtonBlue = Color(0xff566894)
+val TextWhite = Color(0xffeeeeee)

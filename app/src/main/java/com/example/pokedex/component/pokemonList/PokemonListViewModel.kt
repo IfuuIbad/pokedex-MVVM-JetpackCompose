@@ -14,6 +14,8 @@ import com.example.pokedex.util.Constants.PAGE_SIZE
 import com.example.pokedex.util.Resource
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import timber.log.Timber
 import java.util.Locale
@@ -29,7 +31,11 @@ class PokemonListViewModel @Inject constructor(
     var pokemonList = mutableStateOf<List<PokedexListEntry>>(listOf())
     var loadError = mutableStateOf("")
     var isLoading = mutableStateOf(false)
+    var isFavoriteList = mutableStateOf(false)
     var endReached = mutableStateOf(false)
+
+    var scrollIndex = mutableStateOf(0)
+
 
     private var cachedPokemonList = listOf<PokedexListEntry>()
     private var isSearchStarting = true
@@ -39,7 +45,7 @@ class PokemonListViewModel @Inject constructor(
         loadPokemonPaginated()
     }
 
-    fun searchPokemonList(query: String){
+    fun searchPopularPokemonList(query: String){
         val listToSearch = if (isSearchStarting){
             pokemonList.value
         }else{
@@ -63,6 +69,22 @@ class PokemonListViewModel @Inject constructor(
             }
             pokemonList.value = results
         }
+    }
+
+    fun loadPokemonFavorite(){
+        isLoading.value = true
+        repository.getListPokeFav().onEach {
+            pokemonList.value = it
+            isLoading.value = false
+        }.launchIn(viewModelScope)
+    }
+
+    fun cacheCurrList(){
+        cachedPokemonList = pokemonList.value
+    }
+
+    fun getFromCache(){
+        pokemonList.value = cachedPokemonList
     }
 
     fun loadPokemonPaginated(){

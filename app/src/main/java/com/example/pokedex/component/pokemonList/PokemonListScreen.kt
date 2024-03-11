@@ -1,6 +1,7 @@
 package com.example.pokedex.component.pokemonList
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -16,6 +17,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.LazyGridState
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -29,6 +35,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -45,18 +53,27 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.viewModelScope
 import androidx.navigation.NavController
 import coil.compose.SubcomposeAsyncImage
 import coil.request.ImageRequest
 import com.example.pokedex.R
 import com.example.pokedex.data.models.PokedexListEntry
+import com.example.pokedex.ui.theme.ButtonBlue
+import com.example.pokedex.ui.theme.DarkerButtonBlue
 import com.example.pokedex.ui.theme.RobotoCondensed
+import com.example.pokedex.ui.theme.TextWhite
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 
 @Composable
 fun PokemonListScreen(
     navController: NavController,
     viewModel: PokemonListViewModel = hiltViewModel()
 ){
+    val scrollState = rememberLazyListState()
     Surface (
         color = MaterialTheme.colorScheme.background,
         modifier = Modifier.fillMaxSize()
@@ -76,13 +93,16 @@ fun PokemonListScreen(
                     .fillMaxWidth()
                     .padding(16.dp)
             ){
-                viewModel.searchPokemonList(it)
+                viewModel.searchPopularPokemonList(it)
             }
             Spacer(modifier = Modifier.height(16.dp))
-            PokemonList(navController = navController)
+            Chip(chips = listOf("Popular", "Favorite"), scrollState = scrollState)
+            Spacer(modifier = Modifier.height(16.dp))
+            pokemonList(scrollState = scrollState,navController = navController)
         }
     }
 }
+
 
 @Composable
 fun SearchBar(
@@ -130,7 +150,8 @@ fun SearchBar(
 }
 
 @Composable
-fun PokemonList(
+fun pokemonList(
+    scrollState: LazyListState,
     navController: NavController,
     viewModel: PokemonListViewModel = hiltViewModel()
 ){
@@ -149,8 +170,12 @@ fun PokemonList(
     val isSearching by remember {
         viewModel.isSearching
     }
+    val isFavoriteList by remember {
+        viewModel.isFavoriteList
+    }
 
     LazyColumn(
+        state = scrollState,
         contentPadding = PaddingValues(16.dp)
     ){
         val itemCount = if(pokemonList.size % 2 == 0){
@@ -159,8 +184,8 @@ fun PokemonList(
             pokemonList.size / 2 +1
         }
         items(itemCount){
-            if (it >= itemCount - 1 && !endReached && !isLoading && !isSearching){
-                LaunchedEffect(key1 = true){
+            if (it >= itemCount - 1 && !endReached && !isLoading && !isSearching && !isFavoriteList){
+                LaunchedEffect(isFavoriteList){
                     viewModel.loadPokemonPaginated()
                 }
             }
@@ -209,8 +234,10 @@ fun PokedexEntry (
                 )
             )
             .clickable {
+                val encodedUrl =
+                    URLEncoder.encode(entry.imageUrl, StandardCharsets.UTF_8.toString())
                 navController.navigate(
-                    "pokemon_detail_screen/${dominantColor.toArgb()}/${entry.pokemonName}"
+                    "pokemon_detail_screen/${dominantColor.toArgb()}/${entry.pokemonName}/${encodedUrl}/${entry.number}"
                 )
             }
     ){
@@ -291,6 +318,53 @@ fun RetrySection(
             Modifier.align(Alignment.CenterHorizontally)
         ) {
             Text(text = "Retry")
+        }
+    }
+}
+
+@Composable
+fun Chip(
+    chips: List<String>,
+    scrollState: LazyListState,
+    viewModel: PokemonListViewModel = hiltViewModel()
+){
+    var selectableChipIndex by rememberSaveable {
+        mutableStateOf(0)
+    }
+
+    val scope = rememberCoroutineScope()
+
+    var scrollIndex = 0
+    LazyRow(){
+        items(chips.size){
+            Box(
+                modifier = Modifier
+                    .padding(5.dp)
+                    .clickable {
+                        selectableChipIndex = it
+                        if (selectableChipIndex == 1) {
+                            scrollIndex = scrollState.firstVisibleItemIndex
+                            viewModel.cacheCurrList()
+                            viewModel.pokemonList.value = emptyList()
+                            viewModel.isFavoriteList.value = true
+                            viewModel.loadPokemonFavorite()
+                        } else if (selectableChipIndex == 0) {
+                            viewModel.isFavoriteList.value = false
+                            viewModel.getFromCache()
+                            scope.launch {
+                                scrollState.scrollToItem(scrollIndex)
+                            }
+                        }
+                    }
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(
+                        if (selectableChipIndex == it) ButtonBlue
+                        else DarkerButtonBlue
+                    )
+                    .padding(15.dp)
+            ){
+                Text(text = chips[it], color = TextWhite)
+            }
         }
     }
 }

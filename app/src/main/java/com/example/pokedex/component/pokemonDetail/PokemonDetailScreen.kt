@@ -1,5 +1,6 @@
 package com.example.pokedex.component.pokemonDetail
 
+import android.widget.Toast
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -23,9 +24,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.outlined.Favorite
+import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
@@ -38,6 +44,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -48,9 +55,11 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.example.pokedex.R
+import com.example.pokedex.data.models.PokedexListEntry
 import com.example.pokedex.data.remote.responses.Pokemon
 import com.example.pokedex.data.remote.responses.Type
 import com.example.pokedex.util.Resource
+import com.example.pokedex.util.UIComponent
 import com.plcoding.jetpackcomposepokedex.util.parseStatToAbbr
 import com.plcoding.jetpackcomposepokedex.util.parseStatToColor
 import com.plcoding.jetpackcomposepokedex.util.parseTypeToColor
@@ -64,62 +73,131 @@ fun PokemonDetailScreen(
     navController: NavController,
     topPadding: Dp = 20.dp,
     pokemonImageSize : Dp = 200.dp,
+    pokemonListEntry: PokedexListEntry,
     viewModel: PokemonDetailViewModel = hiltViewModel()
 ) {
     val pokemonInfo = produceState<Resource<Pokemon>>(initialValue = Resource.Loading()){
         value = viewModel.getPokemonInfo(pokemonName)
     }.value
 
-    Box (
-        modifier = Modifier
-            .fillMaxSize()
-            .background(dominantColor)
-            .padding(bottom = 16.dp)
-    ){
-        PokemonDetailTopSection(navController = navController,
-            modifier = Modifier
-                .fillMaxWidth()
-                .fillMaxHeight(0.2f)
-                .align(Alignment.TopCenter))
-        PokemonDetailStateWrapper(
-            pokemonInfo = pokemonInfo,
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(
-                    top = topPadding + pokemonImageSize / 2f,
-                    start = 16.dp,
-                    end = 16.dp,
-                    bottom = 16.dp
-                )
-                .shadow(10.dp, RoundedCornerShape(10.dp))
-                .clip(RoundedCornerShape(10.dp))
-                .background(MaterialTheme.colorScheme.surface)
-                .align(Alignment.BottomCenter),
-            loadingModifier = Modifier
-                .size(100.dp)
-                .align(Alignment.Center)
-                .padding(
-                    top = topPadding + pokemonImageSize / 2f,
-                    start = 16.dp,
-                    end = 16.dp,
-                    bottom = 16.dp
-                )
-        )
-        Box(
-            contentAlignment = Alignment.TopCenter,
-            modifier = Modifier.fillMaxSize()
-        ){
-            if (pokemonInfo is Resource.Success){
-                pokemonInfo.data?.sprites?.let {
-                    AsyncImage(
-                        model = it.front_default,
-                        contentDescription = pokemonInfo.data?.name,
-                        modifier = Modifier
-                            .size(pokemonImageSize)
-                            .offset(y = topPadding)
-                    )
+    LaunchedEffect(key1 = true) {
+        viewModel.getFavorite(pokemonListEntry.number)
+    }
+
+    val context = LocalContext.current
+
+    val sideEffect = viewModel.sideEffect
+    val event = viewModel::onEvent
+
+    LaunchedEffect(key1 = sideEffect) {
+        sideEffect?.let {
+            when(sideEffect){
+                is UIComponent.Toast ->{
+                    Toast.makeText(context, sideEffect.message, Toast.LENGTH_SHORT).show()
+                    event(PokemonDetailEvent.RemoveSideEffect)
                 }
+                else -> Unit
             }
+        }
+    }
+
+    Scaffold (
+        content = { _->
+            Box (
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(dominantColor)
+                    .padding(bottom = 16.dp)
+            ){
+                PokemonDetailTopSection(navController = navController,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .fillMaxHeight(0.2f)
+                        .align(Alignment.TopCenter))
+                PokemonDetailStateWrapper(
+                    pokemonInfo = pokemonInfo,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(
+                            top = topPadding + pokemonImageSize / 2f,
+                            start = 16.dp,
+                            end = 16.dp,
+                            bottom = 16.dp
+                        )
+                        .shadow(10.dp, RoundedCornerShape(10.dp))
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(MaterialTheme.colorScheme.surface)
+                        .align(Alignment.BottomCenter),
+                    loadingModifier = Modifier
+                        .size(100.dp)
+                        .align(Alignment.Center)
+                        .padding(
+                            top = topPadding + pokemonImageSize / 2f,
+                            start = 16.dp,
+                            end = 16.dp,
+                            bottom = 16.dp
+                        )
+                )
+                Box(
+                    contentAlignment = Alignment.TopCenter,
+                    modifier = Modifier.fillMaxSize()
+                ){
+                    if (pokemonInfo is Resource.Success){
+                        pokemonInfo.data?.sprites?.let {
+                            AsyncImage(
+                                model = it.front_default,
+                                contentDescription = pokemonInfo.data?.name,
+                                modifier = Modifier
+                                    .size(pokemonImageSize)
+                                    .offset(y = topPadding)
+                            )
+                        }
+                    }
+                }
+
+            }
+        },
+        floatingActionButton = {
+            FavoriteFAB(
+                dominantColor = dominantColor,
+                onClick = {
+                    event(PokemonDetailEvent.UpsertDeleteFavorite(pokemonListEntry))
+                }
+            )
+        }
+    )
+
+}
+
+@Composable
+fun FavoriteFAB(
+    onClick: () -> Unit,
+    dominantColor: Color,
+    viewModel: PokemonDetailViewModel = hiltViewModel()
+) {
+
+    var isfavorite by remember {
+        viewModel.isfavorite
+    }
+
+    Box (
+        contentAlignment = Alignment.BottomEnd,
+        modifier = Modifier.padding(24.dp)
+    ){
+        FloatingActionButton(
+            onClick = { onClick() },
+            shape = CircleShape,
+            containerColor = dominantColor,
+            contentColor = Color.White
+        ) {
+            Icon(
+                if (isfavorite){
+                    Icons.Filled.Favorite
+                }else{
+                    Icons.Outlined.FavoriteBorder
+                },
+                "Floating action button."
+            )
         }
     }
 }
@@ -361,8 +439,9 @@ fun PokemonBaseStats(
         pokemonInfo.stats.maxOf { it.base_stat }
     }
     Column (
-        modifier = Modifier.fillMaxWidth().
-        padding(horizontal = 16.dp)
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
     ) {
         Text(
             text = "Base Stats: ",
